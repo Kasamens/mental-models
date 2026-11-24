@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hanlon's Razor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow reading column, broken by a full-width 3D "crowd" stage where the razor sorts people by why they did it. */
+:root {
+  --bg: #edf0f4;
+  --surface: #f8f9fb;
+  --fg: #172031;
+  --muted: #586378;
+  --line: #d0d6df;
+  --steel: #4a6a8c;
+  --malice: #c1263b;
+  --m1: #2b7d8a;
+  --m2: #4a93b5;
+  --m3: #6c84c2;
+  --m4: #7f9f8f;
+  --person: #a2abb9;
+  --font-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131a; --surface: #161b24; --fg: #e3e8f0; --muted: #96a1b4; --line: #2a3241;
+    --steel: #a3bcd8; --malice: #ff5c6d; --m1: #3fb2c0; --m2: #6cb8de; --m3: #93a8ea; --m4: #9cc4b1; --person: #5e6779;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f131a; --surface: #161b24; --fg: #e3e8f0; --muted: #96a1b4; --line: #2a3241;
+  --steel: #a3bcd8; --malice: #ff5c6d; --m1: #3fb2c0; --m2: #6cb8de; --m3: #93a8ea; --m4: #9cc4b1; --person: #5e6779;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.col { max-width: 680px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.6rem; font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+
+header { padding-block: 48px 24px; display: grid; gap: 18px; }
+blockquote {
+  margin: 0; padding: 0;
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(1.25rem, 2.6vw, 1.6rem); line-height: 1.35;
+}
+blockquote em { font-style: normal; color: var(--malice); }
+blockquote strong { font-weight: 600; color: var(--m1); }
+.lede { color: var(--muted); max-width: 62ch; }
+
+/* Stage */
+.stage-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  display: grid;
+}
+.stage-top {
+  display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between;
+  padding: 16px 18px; border-bottom: 1px solid var(--line);
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: 500 0.85rem var(--font-body);
+  border: 1px solid var(--line); background: transparent; color: var(--fg);
+  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--surface); border-color: var(--fg); }
+.chip:focus-visible, .btn:focus-visible, input[type=range]:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+.btn {
+  font: 600 0.9rem var(--font-display); letter-spacing: 0.01em;
+  border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+  background: var(--steel); color: var(--surface);
+}
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.prompt { padding: 18px 18px 0; display: grid; gap: 4px; }
+.prompt .q { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; }
+.prompt .sub { color: var(--muted); font-size: 0.92rem; }
+
+.scene {
+  position: relative;
+  height: clamp(320px, 46vw, 500px);
+  touch-action: pan-y;
+}
+.scene canvas { display: block; width: 100%; height: 100%; }
+.tag {
+  position: absolute; left: 0; top: 0; pointer-events: none;
+  transform: translate(-50%, 0);
+  font: 500 0.72rem/1.25 var(--font-body); text-align: center; color: var(--fg);
+  max-width: 120px; transition: opacity .3s;
+}
+.tag b { display: block; font: 600 0.95rem var(--font-mono); font-variant-numeric: tabular-nums; }
+.scene-hint {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  font-size: 0.82rem; color: var(--muted); white-space: nowrap;
+}
+
+.controls {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px 32px;
+  padding: 18px; border-top: 1px solid var(--line);
+}
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.legend li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; font-size: 0.9rem; }
+.legend .sw { width: 12px; height: 12px; border-radius: 3px; }
+.legend .n, .legend .pct { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.legend .pct { color: var(--muted); min-width: 4ch; text-align: right; }
+.legend li.mal { border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 2px; }
+.repeat { display: grid; gap: 10px; align-content: start; }
+.repeat label { font-weight: 600; font-size: 0.95rem; }
+.repeat input[type=range] { width: 100%; accent-color: var(--malice); }
+.ticks { display: flex; justify-content: space-between; font: 0.75rem var(--font-mono); color: var(--muted); }
+.readout { font-size: 0.92rem; color: var(--muted); }
+.readout strong { color: var(--fg); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.fine { font-size: 0.8rem; color: var(--muted); padding: 0 18px 16px; }
+
+/* Text sections */
+main { display: grid; gap: 56px; padding-block: 28px 80px; }
+section { display: grid; gap: 16px; }
+section p { max-width: 65ch; }
+.points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.points > div { display: grid; gap: 6px; align-content: start; padding-top: 14px; border-top: 2px solid var(--m1); }
+.points.fail > div { border-top-color: var(--malice); }
+.points p { color: var(--muted); font-size: 0.95rem; }
+.kin { display: grid; gap: 14px; }
+.kin dt { font-family: var(--font-display); font-weight: 600; }
+.kin dd { margin: 2px 0 0; color: var(--muted); max-width: 65ch; }
+.math {
+  font-family: var(--font-mono); font-size: 0.85rem; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; color: var(--fg);
+}
+
+@media (max-width: 760px) {
+  .controls { grid-template-columns: minmax(0, 1fr); }
+  .points { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .tag { display: none; }
+  .scene-hint { white-space: normal; text-align: center; width: 90%; }
+}
+</style>
+
+<div class="wrap">
+  <header class="col">
+    <a class="eyebrow" href="index.html" style="text-decoration:none">← All mental models · Day 10</a>
+    <span class="eyebrow">A rule of thumb for bad days</span>
+    <h1>Hanlon's Razor</h1>
+    <blockquote>“Never attribute to <em>malice</em> that which is adequately explained by <strong>stupidity</strong>.”</blockquote>
+    <p class="lede">When something goes wrong and a person is involved, the boring explanation is usually the right one: they were busy, distracted, uninformed or wrong. Deliberate harm happens, but it's rarer than it feels in the moment. Below, a crowd of people who all did the same annoying thing gets sorted by <em>why</em> they did it.</p>
+  </header>
+</div>
+
+<div class="wrap">
+  <div class="stage-card">
+    <div class="stage-top">
+      <div class="chips" role="group" aria-label="Choose a situation" id="chips"></div>
+      <div class="actions">
+        <button class="btn" id="apply">Apply the razor</button>
+        <button class="btn ghost" id="reset">Mix them up</button>
+      </div>
+    </div>
+    <div class="prompt">
+      <span class="q" id="q"></span>
+      <span class="sub" id="sub">Each figure is one person who could have done this to you. From where you stand, they all look the same.</span>
+    </div>
+    <div class="scene" id="scene">
+      <span class="scene-hint" id="hint">180 suspects, all grey. Press “Apply the razor” to see why each one did it.</span>
+    </div>
+    <div class="controls">
+      <ul class="legend" id="legend" aria-live="polite"></ul>
+      <div class="repeat">
+        <label for="times">How many times has this person done it to you?</label>
+        <input type="range" id="times" min="1" max="6" step="1" value="1">
+        <div class="ticks"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span></div>
+        <p class="readout" id="readout"></p>
+      </div>
+    </div>
+    <p class="fine">The splits are illustrative, chosen to show the idea, not measured from a study. The repeat slider uses Bayes' rule with the assumptions written out further down.</p>
+  </div>
+</div>
+
+<div class="wrap">
+  <main class="col">
+    <section>
+      <span class="eyebrow">Where it comes from</span>
+      <h2>A joke submission that stuck</h2>
+      <p>Robert J. Hanlon sent the line to Arthur Bloch for <i>Murphy's Law Book Two</i> (1980), a collection of tongue-in-cheek laws about why things go wrong. The idea is older: Goethe wrote in 1774 that misunderstandings and neglect cause more trouble than wickedness, and Robert Heinlein made the same point in a 1941 story. It's called a "razor" because, like Occam's, it shaves away an explanation you don't need.</p>
+      <p>Read "stupidity" generously. In practice it means ordinary error: not knowing, not noticing, forgetting, being overloaded, or having different priorities than you assumed.</p>
+    </section>
+
+    <section>
+      <span class="eyebrow">Why it usually holds</span>
+      <h2>The crowd is mostly harmless</h2>
+      <div class="points">
+        <div><h3>Base rates</h3><p>Mistakes are cheap and constant. Malice takes motive, effort and attention on you specifically. Across everyone who might have done it, the careless vastly outnumber the cruel.</p></div>
+        <div><h3>You see outcomes, not intent</h3><p>A missed email looks identical whether it was ignored or buried. Your brain fills the gap with a story, and stories about villains are more vivid than stories about inboxes.</p></div>
+        <div><h3>The costs are lopsided</h3><p>Wrongly accusing someone damages a relationship that may be hard to repair. Wrongly giving the benefit of the doubt is cheap and easy to revise once more evidence arrives.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <span class="eyebrow">Where it stops cutting</span>
+      <h2>The key word is “adequately”</h2>
+      <p>The razor is a starting assumption, not a verdict. It tells you to begin with error and move off it only when error stops explaining what you see. Drag the repeat slider above and watch the red group grow: one incident says little, but a pattern is evidence.</p>
+      <div class="points fail">
+        <div><h3>Repetition</h3><p>One bad merge is a mistake. The same person reverting your work six sprints in a row is a pattern that error explains poorly.</p></div>
+        <div><h3>Incentives</h3><p>If the "mistake" always lands in the other person's favour, ask who benefits. Errors are random; self-serving errors are suspicious.</p></div>
+        <div><h3>Adversarial settings</h3><p>Phishing emails, fraud and security incidents are full of people trying to look clumsy. There the base rate of malice is high, so the razor doesn't apply.</p></div>
+      </div>
+    </section>
+
+    <section>
+      <span class="eyebrow">The arithmetic behind the slider</span>
+      <h2>Updating on a pattern</h2>
+      <p>Start with the chance it was deliberate, the red share for the situation you picked (around 5%). Assume someone acting on purpose would do it again 90% of the time, and someone careless would repeat the same slip 30% of the time. Each repeat multiplies the odds toward malice by 3.</p>
+      <div class="math" id="math"></div>
+      <p>The exact numbers matter less than the shape: a low prior survives one incident, starts to wobble at three, and gives way by four or five. That's the razor working as intended.</p>
+    </section>
+
+    <section>
+      <span class="eyebrow">Related ideas</span>
+      <h2>Its neighbours</h2>
+      <dl class="kin">
+        <div><dt>Occam's razor</dt><dd>Prefer the explanation that needs the fewest assumptions. Malice needs a motive, a plan and a target; error needs only a person.</dd></div>
+        <div><dt>Fundamental attribution error</dt><dd>We blame other people's behaviour on their character and our own on circumstances. Hanlon's razor is a deliberate correction for it.</dd></div>
+        <div><dt>Grey's law</dt><dd>A reply in the spirit of Clarke: incompetence that is advanced enough looks the same as malice. Sometimes the effect on you is identical, and you should respond to the effect.</dd></div>
+      </dl>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const N = 180, SP = 0.42;
+  const P_REPEAT_MALICE = 0.9, P_REPEAT_ERROR = 0.3;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const SCENARIOS = [
+    { id: 'email', chip: 'Unanswered email', q: 'Your email has gone unanswered for a week.',
+      groups: [['Never saw it', .36], ['Saw it, forgot', .30], ['Waiting on someone', .15], ['Thought they replied', .14], ['Ignoring you on purpose', .05]] },
+    { id: 'drive', chip: 'Cut off in traffic', q: 'A driver just cut you off on the highway.',
+      groups: [["Didn't check the mirror", .40], ['Distracted', .25], ['Lost, needed the exit', .20], ['Late and rushing', .11], ['Did it to spite you', .04]] },
+    { id: 'revert', chip: 'Your code got reverted', q: 'A teammate reverted your pull request.',
+      groups: [['Broke a test they trust', .35], ['Merge conflict mess', .25], ['Misread the ticket', .20], ['Release freeze', .15], ['Undermining you', .05]] },
+  ];
+  const COLOR_VARS = ['--m1', '--m2', '--m3', '--m4', '--malice'];
+
+  let scen = SCENARIOS[0];
+  let times = 1;
+  let sorted = false;
+
+  // ---------- helpers ----------
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function posterior(base, n) {
+    const a = base * Math.pow(P_REPEAT_MALICE, n - 1);
+    const b = (1 - base) * Math.pow(P_REPEAT_ERROR, n - 1);
+    return a / (a + b);
+  }
+  function shares() {
+    const base = scen.groups[4][1];
+    const post = posterior(base, times);
+    return scen.groups.map((g, i) => i === 4 ? post : g[1] / (1 - base) * (1 - post));
+  }
+  function counts(sh) {
+    const raw = sh.map(s => s * N);
+    const c = raw.map(Math.floor);
+    let left = N - c.reduce((a, b) => a + b, 0);
+    raw.map((r, i) => [r - Math.floor(r), i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => c[i]++);
+    return c;
+  }
+
+  // ---------- three setup ----------
+  const host = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+  host.prepend(renderer.domElement);
+  renderer.domElement.setAttribute('aria-label', 'A crowd of figures sorted by a sweeping blade into groups by reason');
+  renderer.domElement.setAttribute('role', 'img');
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(36, 2, 0.1, 200);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x445566, 0.85);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+  sun.position.set(4, 10, 6);
+  scene.add(sun);
+
+  const grid = new THREE.GridHelper(40, 80, 0x888888, 0x888888);
+  grid.material.transparent = true; grid.material.opacity = 0.35;
+  scene.add(grid);
+
+  const bodyGeo = new THREE.CylinderGeometry(0.1, 0.15, 0.46, 12); bodyGeo.translate(0, 0.23, 0);
+  const headGeo = new THREE.SphereGeometry(0.1, 14, 10); headGeo.translate(0, 0.58, 0);
+  const mat = new THREE.MeshStandardMaterial({ roughness: 0.65, metalness: 0.05 });
+  const bodies = new THREE.InstancedMesh(bodyGeo, mat, N);
+  const heads = new THREE.InstancedMesh(headGeo, mat, N);
+  scene.add(bodies, heads);
+
+  // the razor: a thin steel blade with a bright edge
+  const blade = new THREE.Group();
+  const bladeMat = new THREE.MeshStandardMaterial({ metalness: 0.85, roughness: 0.22, transparent: true, opacity: 0.85 });
+  const bladeBody = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.3, 1), bladeMat);
+  bladeBody.position.y = 0.75;
+  const edgeMat = new THREE.MeshBasicMaterial();
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 1), edgeMat);
+  edge.position.y = 0.1;
+  blade.add(bladeBody, edge);
+  scene.add(blade);
+
+  // ---------- people ----------
+  const people = [];
+  function rand(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+  const rnd = rand(42);
+  for (let i = 0; i < N; i++) {
+    const x = (rnd() - 0.5) * 10, z = (rnd() - 0.5) * 4.6;
+    people.push({
+      x, z, tx: x, tz: z, sx: x, sz: z,
+      group: -1, revealed: false,
+      col: new THREE.Color(), tcol: new THREE.Color(),
+      phase: rnd() * Math.PI * 2, delay: rnd() * 0.25,
+    });
+  }
+
+  let colors = [], neutral = new THREE.Color();
+  function readTheme() {
+    colors = COLOR_VARS.map(v => new THREE.Color(css(v)));
+    neutral = new THREE.Color(css('--person'));
+    bladeMat.color.set(css('--steel'));
+    edgeMat.color.set(css('--malice'));
+    grid.material.color.set(css('--line'));
+    people.forEach(p => p.tcol.copy(p.revealed ? colors[p.group] : neutral));
+    renderLegend();
+  }
+
+  let layout = { width: 11, divider: 0, groups: [] };
+  let bladeX = -7, bladeTarget = -7, bladeDepth = 5;
+  let sweep = null;
+
+  function assign() {
+    const c = counts(shares());
+    // minimal moves: keep people in their group if it still has room
+    const members = [[], [], [], [], []], pool = [];
+    people.forEach(p => { if (p.group >= 0 && members[p.group].length < c[p.group]) members[p.group].push(p); else pool.push(p); });
+    for (let g = 0; g < 5; g++) while (members[g].length < c[g]) members[g].push(pool.pop());
+
+    // geometry of clusters
+    const gap = 1.0, divGap = 1.7;
+    const info = c.map(n => {
+      const cols = Math.max(1, Math.ceil(Math.sqrt(n * 0.9)));
+      const rows = Math.max(1, Math.ceil(n / cols));
+      return { n, cols, rows, w: (cols - 1) * SP };
+    });
+    let total = 0;
+    info.forEach((g, i) => { total += g.w; if (i < 4) total += (i === 3 ? divGap : gap); });
+    let x = -total / 2, divider = 0, maxRows = 1;
+    info.forEach((g, i) => {
+      g.x0 = x; g.cx = x + g.w / 2; g.front = (g.rows - 1) / 2 * SP;
+      maxRows = Math.max(maxRows, g.rows);
+      x += g.w;
+      if (i === 3) divider = x + divGap / 2;
+      if (i < 4) x += (i === 3 ? divGap : gap);
+    });
+    members.forEach((list, g) => {
+      const gi = info[g];
+      list.sort((a, b) => a.sx - b.sx || a.sz - b.sz);
+      list.forEach((p, j) => {
+        p.group = g;
+        const col = j % gi.cols, row = Math.floor(j / gi.cols);
+        p.tx = gi.x0 + col * SP;
+        p.tz = (row - (gi.rows - 1) / 2) * SP;
+        if (p.revealed) p.tcol.copy(colors[g]);
+      });
+    });
+    layout = { width: total, divider, groups: info, depth: maxRows * SP };
+    bladeDepth = Math.max(3, maxRows * SP + 1.2);
+    if (sorted && !sweep) bladeTarget = divider;
+    renderLegend();
+  }
+
+  // ---------- UI ----------
+  const chipsEl = document.getElementById('chips');
+  SCENARIOS.forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'chip'; b.id = 'chip-' + s.id; b.textContent = s.chip;
+    b.setAttribute('aria-pressed', s === scen);
+    b.addEventListener('click', () => { scen = s; times = 1; timesEl.value = 1; syncChips(); assign(); updateText(); });
+    chipsEl.appendChild(b);
+  });
+  function syncChips() { [...chipsEl.children].forEach((b, i) => b.setAttribute('aria-pressed', SCENARIOS[i] === scen)); }
+
+  const timesEl = document.getElementById('times');
+  timesEl.addEventListener('input', () => { times = +timesEl.value; assign(); updateText(); });
+
+  const tags = [];
+  for (let i = 0; i < 5; i++) {
+    const t = document.createElement('div'); t.className = 'tag'; t.style.opacity = 0;
+    host.appendChild(t); tags.push(t);
+  }
+
+  function renderLegend() {
+    const c = counts(shares());
+    const el = document.getElementById('legend');
+    el.innerHTML = scen.groups.map((g, i) => `
+      <li class="${i === 4 ? 'mal' : ''}">
+        <span class="sw" style="background:var(${COLOR_VARS[i]})"></span>
+        <span>${g[0]}</span>
+        <span class="n">${sorted ? c[i] : '?'}</span>
+        <span class="pct">${sorted ? Math.round(c[i] / N * 100) + '%' : ''}</span>
+      </li>`).join('');
+    tags.forEach((t, i) => {
+      t.innerHTML = `<b style="color:var(${COLOR_VARS[i]})">${c[i]}</b>${scen.groups[i][0]}`;
+    });
+  }
+
+  function updateText() {
+    document.getElementById('q').textContent = scen.q;
+    const base = scen.groups[4][1], post = posterior(base, times);
+    const c = counts(shares());
+    const ro = document.getElementById('readout');
+    if (!sorted) {
+      ro.textContent = 'Apply the razor first, then see how a repeat changes the picture.';
+    } else if (times === 1) {
+      ro.innerHTML = `First time it's happened: <strong>${c[4]} of ${N}</strong> did it on purpose. Assume error.`;
+    } else {
+      const verdict = post < 0.25 ? 'Still most likely error.' : post < 0.5 ? 'Getting suspicious. Ask, don’t accuse.' : 'Error no longer adequately explains it.';
+      ro.innerHTML = `Happened ${times} times: <strong>${Math.round(post * 100)}%</strong> chance it's deliberate. ${verdict}`;
+    }
+    timesEl.disabled = !sorted;
+    // math block
+    let lines = `prior odds (malice : error)  = ${base.toFixed(2)} : ${(1 - base).toFixed(2)}\n`;
+    lines += `each repeat multiplies by      ${P_REPEAT_MALICE} / ${P_REPEAT_ERROR} = 3\n\n`;
+    for (let n = 1; n <= 6; n++) {
+      const p = posterior(base, n);
+      lines += `${n === times ? '▶' : ' '} after ${n} time${n > 1 ? 's' : ' '}:  ${(p * 100).toFixed(0).padStart(3)}% deliberate\n`;
+    }
+    document.getElementById('math').textContent = lines.trimEnd();
+  }
+
+  document.getElementById('apply').addEventListener('click', () => {
+    sorted = true;
+    assign();
+    const half = layout.width / 2 + 1.2;
+    const from = Math.min(-half, -6.2), to = Math.max(half, 6.2);
+    if (reduce) {
+      people.forEach(p => { p.revealed = true; p.tcol.copy(colors[p.group]); });
+      bladeX = bladeTarget = layout.divider; sweep = null;
+    } else {
+      bladeX = from; sweep = { to, speed: (to - from) / 1.5 };
+    }
+    document.getElementById('hint').hidden = true;
+    document.getElementById('sub').textContent = 'Colour shows why each person did it. Everything left of the blade is an honest mistake.';
+    renderLegend(); updateText();
+  });
+
+  document.getElementById('reset').addEventListener('click', () => {
+    sorted = false; sweep = null; times = 1; timesEl.value = 1;
+    const r = rand(Math.floor(Math.random() * 1e6) + 1);
+    people.forEach(p => {
+      p.revealed = false; p.tcol.copy(neutral);
+      p.tx = p.sx = (r() - 0.5) * 10; p.tz = p.sz = (r() - 0.5) * 4.6;
+    });
+    layout.width = 11; bladeTarget = -6.2; bladeDepth = 5;
+    document.getElementById('hint').hidden = false;
+    document.getElementById('sub').textContent = 'Each figure is one person who could have done this to you. From where you stand, they all look the same.';
+    renderLegend(); updateText();
+  });
+
+  // ---------- sizing ----------
+  let W = 1, H = 1, camDist = 16;
+  function resize() {
+    W = host.clientWidth; H = host.clientHeight;
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(host);
+  resize();
+
+  let mx = 0, my = 0;
+  host.addEventListener('pointermove', e => {
+    const r = host.getBoundingClientRect();
+    mx = (e.clientX - r.left) / r.width - 0.5; my = (e.clientY - r.top) / r.height - 0.5;
+  });
+  host.addEventListener('pointerleave', () => { mx = my = 0; });
+
+  // ---------- loop ----------
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s1 = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
+  const camDir = new THREE.Vector3(0, 0.62, 0.78).normalize();
+  let last = performance.now(), t = 0;
+
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    const k = reduce ? 1 : 1 - Math.exp(-dt * 4.5);
+
+    // sweep
+    if (sweep) {
+      bladeX += sweep.speed * dt;
+      people.forEach(p => {
+        if (!p.revealed && bladeX > p.x) { p.revealed = true; p.tcol.copy(colors[p.group]); }
+      });
+      if (bladeX >= sweep.to) { sweep = null; bladeTarget = layout.divider; }
+    } else {
+      bladeX += (bladeTarget - bladeX) * (reduce ? 1 : 1 - Math.exp(-dt * 3));
+    }
+    blade.position.x = bladeX;
+    blade.scale.z += (bladeDepth - blade.scale.z) * k;
+
+    // camera fit to layout
+    const span = Math.max(layout.width, 10) * 1.12;
+    const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+    const want = Math.max(9, (span / 2) / Math.tan(hfov / 2) + 2);
+    camDist += (want - camDist) * (reduce ? 1 : 1 - Math.exp(-dt * 2));
+    camera.position.copy(camDir).multiplyScalar(camDist);
+    camera.position.x += mx * 2.2; camera.position.y -= my * 1.2;
+    camera.lookAt(0, 0.2, 0);
+
+    // people
+    people.forEach((p, i) => {
+      const go = p.revealed;
+      const gx = go ? p.tx : p.sx, gz = go ? p.tz : p.sz;
+      const dx = gx - p.x, dz = gz - p.z;
+      p.x += dx * k; p.z += dz * k;
+      const moving = Math.min(1, Math.hypot(dx, dz));
+      const y = reduce ? 0 : Math.abs(Math.sin(t * 9 + p.phase)) * 0.18 * moving + (go ? 0 : Math.sin(t * 1.6 + p.phase) * 0.015);
+      v.set(p.x, y, p.z);
+      m4.compose(v, q, s1);
+      bodies.setMatrixAt(i, m4); heads.setMatrixAt(i, m4);
+      p.col.lerp(p.tcol, reduce ? 1 : 1 - Math.exp(-dt * 6));
+      bodies.setColorAt(i, p.col); heads.setColorAt(i, p.col);
+    });
+    bodies.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
+    bodies.instanceColor.needsUpdate = heads.instanceColor.needsUpdate = true;
+
+    // labels
+    const settled = sorted && !sweep;
+    layout.groups.forEach((g, i) => {
+      const tag = tags[i];
+      if (!settled || g.n === 0) { tag.style.opacity = 0; return; }
+      v.set(g.cx, 0, g.front + 0.45).project(camera);
+      tag.style.left = ((v.x + 1) / 2 * W) + 'px';
+      tag.style.top = ((1 - v.y) / 2 * H) + 'px';
+      tag.style.opacity = 1;
+    });
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+
+  // theme changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTheme);
+  new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  readTheme();
+  people.forEach(p => { p.col.copy(neutral); p.tcol.copy(neutral); bodies.setColorAt(p === people[0] ? 0 : people.indexOf(p), p.col); heads.setColorAt(people.indexOf(p), p.col); });
+  assign();
+  bladeX = bladeTarget = -6.2;
+  updateText();
+  requestAnimationFrame(frame);
+})();
+</script>

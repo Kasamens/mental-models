@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mental Models in 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a day-by-day index on the left (top on phones) beside one interactive 3D stage per model, explainer text beneath it. */
+:root {
+  --bg: #edf0f4; --surface: #f8f9fb; --fg: #172031; --muted: #586378; --line: #d0d6df;
+  --accent: #4a6a8c;   /* steel: the main actor in a scene */
+  --warm: #c98a1b;     /* highlight / gain */
+  --bad: #c1263b;      /* cost, danger, failure */
+  --good: #2b8a5e;     /* success, safe */
+  --c1: #2b7d8a; --c2: #4a93b5; --c3: #6c84c2; --c4: #7f9f8f;  /* categorical */
+  --neutral: #a2abb9;
+  --font-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131a; --surface: #161b24; --fg: #e3e8f0; --muted: #96a1b4; --line: #2a3241;
+    --accent: #a3bcd8; --warm: #f0b54a; --bad: #ff5c6d; --good: #4fd18f;
+    --c1: #3fb2c0; --c2: #6cb8de; --c3: #93a8ea; --c4: #9cc4b1; --neutral: #5e6779;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f131a; --surface: #161b24; --fg: #e3e8f0; --muted: #96a1b4; --line: #2a3241;
+  --accent: #a3bcd8; --warm: #f0b54a; --bad: #ff5c6d; --good: #4fd18f;
+  --c1: #3fb2c0; --c2: #6cb8de; --c3: #93a8ea; --c4: #9cc4b1; --neutral: #5e6779;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+.shell {
+  max-width: 1280px; margin: 0 auto; padding-block: 32px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 36px; align-items: start;
+}
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+p { margin: 0; }
+a { color: inherit; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+
+aside { position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); display: grid; gap: 22px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.brand { display: grid; gap: 6px; }
+.brand h1 { font-size: 1.4rem; }
+.brand p { font-size: 0.85rem; color: var(--muted); }
+#nav { display: grid; gap: 18px; }
+.wk { display: grid; gap: 6px; }
+.wk ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.wk a { display: flex; gap: 10px; align-items: baseline; text-decoration: none; padding: 5px 8px; border-radius: 6px; font-size: 0.9rem; }
+.wk a:hover { background: var(--surface); }
+.wk a[aria-current="page"] { background: var(--fg); color: var(--surface); }
+.wk a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wk .d { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2ch; }
+.wk a[aria-current="page"] .d { color: inherit; opacity: .7; }
+.ext { color: var(--muted); font-size: 0.8rem; }
+
+main { display: grid; gap: 28px; min-width: 0; }
+.head { display: grid; gap: 10px; max-width: 720px; }
+.head h2 { font-size: clamp(2rem, 4.5vw, 3rem); letter-spacing: -0.02em; }
+.tagline { font-family: var(--font-display); font-weight: 500; font-size: clamp(1.1rem, 2.2vw, 1.35rem); line-height: 1.4; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: grid; }
+#prompt { padding: 14px 18px; border-bottom: 1px solid var(--line); font-size: 0.92rem; color: var(--muted); }
+#stage { position: relative; height: clamp(320px, 44vw, 500px); touch-action: pan-y; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+#controls { padding: 16px 18px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: center; }
+#controls:empty { display: none; }
+
+/* shared control styles for scenes */
+.btn { font: 600 0.88rem var(--font-display); border: 0; border-radius: 8px; padding: 9px 15px; cursor: pointer; background: var(--accent); color: var(--surface); }
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn:focus-visible, .chip:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chip { font: 500 0.84rem var(--font-body); border: 1px solid var(--line); background: transparent; color: var(--fg); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--surface); border-color: var(--fg); }
+.field { display: grid; gap: 4px; min-width: 180px; flex: 1 1 200px; }
+.field label { font-size: 0.85rem; font-weight: 600; }
+.field input[type=range] { width: 100%; accent-color: var(--accent); }
+.field .val { font: 0.8rem var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.readout { font-size: 0.92rem; color: var(--muted); flex: 1 1 100%; }
+.readout strong { color: var(--fg); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.tag { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); pointer-events: none; font: 500 0.75rem/1.25 var(--font-body); color: var(--fg); text-align: center; max-width: 140px; white-space: normal; }
+.tag b { display: block; font: 600 0.92rem var(--font-mono); font-variant-numeric: tabular-nums; }
+
+#body { display: grid; gap: 40px; max-width: 700px; }
+#body section { display: grid; gap: 14px; }
+#body h2 { font-size: 1.5rem; }
+#body h3 { font-size: 1.02rem; }
+#body p { max-width: 65ch; }
+#body .points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+#body .points > div { display: grid; gap: 6px; align-content: start; padding-top: 12px; border-top: 2px solid var(--accent); }
+#body .points p { color: var(--muted); font-size: 0.94rem; }
+#body .math { font-family: var(--font-mono); font-size: 0.85rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+#body .try { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
+#pager { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.92rem; }
+#pager a { text-decoration: none; color: var(--accent); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  aside { position: static; max-height: none; }
+  #nav { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  #body .points { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) { .tag { font-size: 0.68rem; max-width: 100px; } }
+</style>
+
+<div class="shell" id="top">
+  <aside>
+    <div class="brand">
+      <span class="eyebrow">A 3-week plan, one model a day</span>
+      <h1>Mental Models in 3D</h1>
+      <p>Each model gets a small world you can poke at. Pick a day to start.</p>
+    </div>
+    <nav id="nav" aria-label="Models by day"></nav>
+  </aside>
+  <main>
+    <div class="head">
+      <span class="eyebrow" id="day"></span>
+      <h2 id="title"></h2>
+      <p class="tagline" id="tagline"></p>
+    </div>
+    <div class="card">
+      <p id="prompt"></p>
+      <div id="stage" role="img" aria-label="Interactive 3D illustration of the model"></div>
+      <div id="controls"></div>
+    </div>
+    <div id="body"></div>
+    <nav id="pager" aria-label="Previous and next model"></nav>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="app.js"></script>
+<script src="scenes/week1.js"></script>
+<script src="scenes/week2.js"></script>
+<script src="scenes/week3.js"></script>
