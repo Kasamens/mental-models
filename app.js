@@ -219,6 +219,11 @@
     nav.querySelectorAll('a[data-id]').forEach(a => a.setAttribute('aria-current', a.dataset.id === s.id ? 'page' : 'false'));
     const i = scenes.indexOf(s);
     const prev = scenes[i - 1], next = scenes[i + 1];
+    [['m-prev', prev], ['m-next', next]].forEach(([id, sc]) => {
+      const a = document.getElementById(id); if (!a) return;
+      if (sc) { a.href = '#' + sc.id; a.removeAttribute('aria-disabled'); a.title = `Day ${sc.day}: ${sc.title}`; }
+      else { a.removeAttribute('href'); a.setAttribute('aria-disabled', 'true'); a.title = ''; }
+    });
     document.getElementById('pager').innerHTML =
       (prev ? `<a href="#${prev.id}">\u2190 Day ${prev.day}: ${prev.title}</a>` : '<span></span>') +
       (next ? `<a href="#${next.id}">Day ${next.day}: ${next.title} \u2192</a>` : '<span></span>');
@@ -231,6 +236,9 @@
   // the day list collapses into a disclosure on narrow screens
   const narrow = window.matchMedia('(max-width: 900px)');
   narrow.addEventListener('change', () => { const d = document.getElementById('nav-wrap'); if (d) d.open = !narrow.matches; });
+  // on phones the open list is a dropdown: close it on an outside tap or Escape
+  document.addEventListener('click', e => { const d = document.getElementById('nav-wrap'); if (narrow.matches && d && d.open && !d.contains(e.target)) d.open = false; });
+  document.addEventListener('keydown', e => { const d = document.getElementById('nav-wrap'); if (e.key === 'Escape' && narrow.matches && d && d.open) { d.open = false; d.querySelector('summary').focus(); } });
 
   // keyboard paging: left/right arrows move between days unless a control has focus
   document.addEventListener('keydown', e => {
