@@ -5,72 +5,6 @@
 (function () {
   'use strict';
 
-  /* ---------- shared helpers (local to this file) ---------- */
-  function kit(ctx) {
-    const T = ctx.THREE, C = ctx.colors, mats = [], tags = [];
-    const K = { T, C };
-    const track = (m, key) => { m.userData.key = key; mats.push(m); return m; };
-    K.std = (key, o) => track(new T.MeshStandardMaterial(Object.assign({ color: C[key].clone(), roughness: 0.7, metalness: 0.04 }, o)), key);
-    K.basic = (key, o) => track(new T.MeshBasicMaterial(Object.assign({ color: C[key].clone() }, o)), key);
-    K.lineMat = (key, o) => track(new T.LineBasicMaterial(Object.assign({ color: C[key].clone() }, o)), key);
-    K.dashMat = (key, o) => track(new T.LineDashedMaterial(Object.assign({ color: C[key].clone(), dashSize: 0.25, gapSize: 0.18 }, o)), key);
-    K.setKey = (m, key) => { m.userData.key = key; m.color.copy(C[key]); };
-    K.recolor = () => mats.forEach(m => { if (m.userData.key) m.color.copy(C[m.userData.key]); });
-    ctx.onTheme(K.recolor);
-    // frame-rate independent easing factor; snaps when reduced motion is on
-    K.f = (dt, rate) => ctx.reduce ? 1 : 1 - Math.exp(-(rate || 6) * dt);
-    K.V = (x, y, z) => new T.Vector3(x, y, z);
-
-    K.tag = (html, pos) => {
-      const el = ctx.tag(html);
-      const t = { el, pos: pos.clone(), on: true, h: html };
-      t.show = b => { if (t.on !== b) { t.on = b; el.style.display = b ? '' : 'none'; } return t; };
-      t.set = h => { if (t.h !== h) { t.h = h; el.innerHTML = h; } return t; };
-      tags.push(t);
-      return t;
-    };
-    ctx.onFrame(() => tags.forEach(t => { if (t.on) ctx.place(t.el, t.pos); }));
-
-    K.el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-    K.btn = (label, fn, ghost) => {
-      const b = K.el('button', 'btn' + (ghost ? ' ghost' : ''), label);
-      b.type = 'button'; b.addEventListener('click', fn); ctx.controls.appendChild(b); return b;
-    };
-    K.chips = (label, opts, init, fn) => {
-      const wrap = K.el('div');
-      wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', label);
-      wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
-      const bs = opts.map(o => {
-        const b = K.el('button', 'chip', o.label); b.type = 'button';
-        b.addEventListener('click', () => { set(o.v); fn(o.v); });
-        wrap.appendChild(b); return [o.v, b];
-      });
-      function set(v) { bs.forEach(([k, b]) => b.setAttribute('aria-pressed', String(k === v))); }
-      set(init); ctx.controls.appendChild(wrap);
-      return { set };
-    };
-    K.toggle = (label, init, fn) => {
-      const b = K.el('button', 'chip', label); b.type = 'button';
-      let on = init; b.setAttribute('aria-pressed', String(on));
-      b.addEventListener('click', () => { on = !on; b.setAttribute('aria-pressed', String(on)); fn(on); });
-      ctx.controls.appendChild(b); return b;
-    };
-    K.slider = o => {
-      const id = 'w1-' + Math.random().toString(36).slice(2, 8);
-      const f = K.el('div', 'field', `<label for="${id}">${o.label}</label><input id="${id}" type="range" min="${o.min}" max="${o.max}" step="${o.step}" value="${o.value}"><span class="val"></span>`);
-      const inp = f.querySelector('input'), val = f.querySelector('.val');
-      const upd = () => { const x = parseFloat(inp.value); val.textContent = o.fmt ? o.fmt(x) : x; o.on(x); };
-      inp.addEventListener('input', upd);
-      ctx.controls.appendChild(f);
-      return { input: inp, update: upd };
-    };
-    K.readout = () => {
-      const r = K.el('div', 'readout'); r.setAttribute('aria-live', 'polite'); ctx.controls.appendChild(r);
-      queueMicrotask(() => { if (r.parentNode === ctx.controls) ctx.controls.appendChild(r); }); // keep it below the inputs
-      return r;
-    };
-    return K;
-  }
 
   // small deterministic PRNG so layouts are the same on every visit
   function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -110,7 +44,7 @@
   </div>
 </section>`,
     mount(ctx) {
-      const K = kit(ctx), T = K.T, C = ctx.colors, S = ctx.scene;
+      const K = ctx.kit(), T = K.T, C = ctx.colors, S = ctx.scene;
       // illustrative cost per kWh; q = number of cubes (roughly by mass)
       const PARTS = [
         { n: 'Nickel', k: 'c1', cost: 22, q: 14 },
@@ -228,7 +162,7 @@
   </div>
 </section>`,
     mount(ctx) {
-      const K = kit(ctx), T = K.T, S = ctx.scene;
+      const K = ctx.kit(), T = K.T, S = ctx.scene;
       const NX = 7, NZ = 11, START = [3, 0], GOAL = [3, 10];
       const PITS = [
         { n: 'No budget', cells: [[2, 2], [3, 2], [4, 2]] },
@@ -415,7 +349,7 @@
   </div>
 </section>`,
     mount(ctx) {
-      const K = kit(ctx), T = K.T, S = ctx.scene;
+      const K = ctx.kit(), T = K.T, S = ctx.scene;
       const R = [0, 2.6, 4.7, 6.8];
       const deg = d => d * Math.PI / 180;
       // tree: two 1st-order, each with two 2nd-order, each with one 3rd-order
@@ -535,7 +469,7 @@
   </div>
 </section>`,
     mount(ctx) {
-      const K = kit(ctx), T = K.T, S = ctx.scene;
+      const K = ctx.kit(), T = K.T, S = ctx.scene;
       const OPTS = [
         { n: 'Leave it in savings', t: 'Savings', s: '0.5% a year', v: 250, k: 'c2' },
         { n: 'Index fund', t: 'Index fund', s: '~7% a year', v: 4000, k: 'c1' },
@@ -646,7 +580,7 @@
   </div>
 </section>`,
     mount(ctx) {
-      const K = kit(ctx), T = K.T, S = ctx.scene;
+      const K = ctx.kit(), T = K.T, S = ctx.scene;
       const REAL = 3.2;
       const Q = [
         ['Spot early sepsis', 1.0, 200], ['Dose a common drug', 1.7, 320], ['Calm a scared patient', 2.3, 75],
@@ -757,7 +691,7 @@
   </div>
 </section>`,
     mount(ctx) {
-      const K = kit(ctx), T = K.T, S = ctx.scene, C = ctx.colors;
+      const K = ctx.kit(), T = K.T, S = ctx.scene, C = ctx.colors;
       const MAPY = 5.3, HALF = 5;
       function segD2(x, z, ax, az, bx, bz) {
         const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));

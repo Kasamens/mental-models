@@ -22,10 +22,18 @@
  *   fit(width, height, target?)             // frame a world-space box of that size with the camera
  *   tag(html) -> el                         // absolutely positioned overlay label; place with ctx.place(el, vec3)
  *   place(el, vec3)                         // projects vec3 to screen and positions el (call each frame)
+ *   kit()                                   // shared helpers: theme-tracked materials (std/basic/lineMat), tags, btn/chips/toggle/slider/readout
  * }
  * Everything added to ctx.scene is disposed automatically on unmount, as are overlay tags and controls.
  */
 (function () {
+  if (!window.THREE) { // three.js CDN failed: say so instead of a blank stage
+    window.MM = { register() {} };
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('stage').innerHTML = '<p class="stage-msg">The 3D library didn\u2019t load. Check your connection and reload the page.</p>';
+    });
+    return;
+  }
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const scenes = [];
@@ -89,6 +97,74 @@
     },
   };
 
+  // ---------- shared scene kit (ctx.kit()): theme-tracked materials, overlay tags, controls ----------
+  function kit(ctx) {
+    const T = ctx.THREE, C = ctx.colors, mats = [], tags = [];
+    const K = { T, C };
+    const track = (m, key) => { m.userData.key = key; mats.push(m); return m; };
+    K.std = (key, o) => track(new T.MeshStandardMaterial(Object.assign({ color: C[key].clone(), roughness: 0.7, metalness: 0.04 }, o)), key);
+    K.basic = (key, o) => track(new T.MeshBasicMaterial(Object.assign({ color: C[key].clone() }, o)), key);
+    K.lineMat = (key, o) => track(new T.LineBasicMaterial(Object.assign({ color: C[key].clone() }, o)), key);
+    K.dashMat = (key, o) => track(new T.LineDashedMaterial(Object.assign({ color: C[key].clone(), dashSize: 0.25, gapSize: 0.18 }, o)), key);
+    K.setKey = (m, key) => { m.userData.key = key; m.color.copy(C[key]); };
+    K.recolor = () => mats.forEach(m => { if (m.userData.key) m.color.copy(C[m.userData.key]); });
+    ctx.onTheme(K.recolor);
+    // frame-rate independent easing factor; snaps when reduced motion is on
+    K.f = (dt, rate) => ctx.reduce ? 1 : 1 - Math.exp(-(rate || 6) * dt);
+    K.V = (x, y, z) => new T.Vector3(x, y, z);
+
+    K.tag = (html, pos) => {
+      const el = ctx.tag(html);
+      const t = { el, pos: pos.clone(), on: true, h: html };
+      t.show = b => { if (t.on !== b) { t.on = b; el.style.display = b ? '' : 'none'; } return t; };
+      t.set = h => { if (t.h !== h) { t.h = h; el.innerHTML = h; } return t; };
+      tags.push(t);
+      return t;
+    };
+    ctx.onFrame(() => tags.forEach(t => { if (t.on) ctx.place(t.el, t.pos); }));
+
+    K.el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+    K.btn = (label, fn, ghost) => {
+      const b = K.el('button', 'btn' + (ghost ? ' ghost' : ''), label);
+      b.type = 'button'; b.addEventListener('click', fn); ctx.controls.appendChild(b); return b;
+    };
+    K.chips = (label, opts, init, fn) => {
+      const wrap = K.el('div');
+      wrap.setAttribute('role', 'group'); wrap.setAttribute('aria-label', label);
+      wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px';
+      const bs = opts.map(o => {
+        const b = K.el('button', 'chip', o.label); b.type = 'button';
+        b.addEventListener('click', () => { set(o.v); fn(o.v); });
+        wrap.appendChild(b); return [o.v, b];
+      });
+      function set(v) { bs.forEach(([k, b]) => b.setAttribute('aria-pressed', String(k === v))); }
+      set(init); ctx.controls.appendChild(wrap);
+      return { set };
+    };
+    K.toggle = (label, init, fn) => {
+      const b = K.el('button', 'chip', label); b.type = 'button';
+      let on = init; b.setAttribute('aria-pressed', String(on));
+      b.addEventListener('click', () => { on = !on; b.setAttribute('aria-pressed', String(on)); fn(on); });
+      ctx.controls.appendChild(b); return b;
+    };
+    K.slider = o => {
+      const id = 'k-' + Math.random().toString(36).slice(2, 8);
+      const f = K.el('div', 'field', `<label for="${id}">${o.label}</label><input id="${id}" type="range" min="${o.min}" max="${o.max}" step="${o.step}" value="${o.value}"><span class="val"></span>`);
+      const inp = f.querySelector('input'), val = f.querySelector('.val');
+      const upd = () => { const x = parseFloat(inp.value); val.textContent = o.fmt ? o.fmt(x) : x; o.on(x); };
+      inp.addEventListener('input', upd);
+      ctx.controls.appendChild(f);
+      return { input: inp, update: upd };
+    };
+    K.readout = () => {
+      const r = K.el('div', 'readout'); r.setAttribute('aria-live', 'polite'); ctx.controls.appendChild(r);
+      queueMicrotask(() => { if (r.parentNode === ctx.controls) ctx.controls.appendChild(r); }); // keep it below the inputs
+      return r;
+    };
+    return K;
+  }
+  ctx.kit = () => kit(ctx);
+
   function disposeScene(s) {
     s.traverse(o => {
       if (o.geometry) o.geometry.dispose();
@@ -110,7 +186,6 @@
   // ---------- nav + routing ----------
   const nav = document.getElementById('nav');
   const WEEKS = { 1: 'Week 1 \u00b7 The core six', 2: 'Week 2 \u00b7 Better decisions', 3: 'Week 3 \u00b7 How things grow and connect' };
-  const EXTERNAL = { 10: { title: "Hanlon's razor", href: 'hanlons-razor.html' } };
 
   function buildNav() {
     scenes.sort((a, b) => a.day - b.day);
@@ -119,7 +194,6 @@
       html += `<div class="wk"><span class="eyebrow">${WEEKS[w]}</span><ol>`;
       const days = [];
       scenes.filter(s => s.week === w).forEach(s => days.push({ day: s.day, html: `<li><a href="#${s.id}" data-id="${s.id}"><span class="d">${String(s.day).padStart(2, '0')}</span>${s.title}</a></li>` }));
-      Object.entries(EXTERNAL).forEach(([d, e]) => { if (Math.ceil(d / 7) === w) days.push({ day: +d, html: `<li><a href="${e.href}"><span class="d">${d}</span>${e.title}</a></li>` }); });
       days.sort((a, b) => a.day - b.day).forEach(d => html += d.html);
       html += '</ol></div>';
     });
@@ -133,6 +207,12 @@
     current = { s };
     document.getElementById('day').textContent = `Day ${s.day} \u00b7 Week ${s.week}`;
     document.getElementById('title').textContent = s.title;
+    document.title = `${s.title} \u00b7 Mental Models`;
+    host.setAttribute('aria-label', `Interactive 3D illustration: ${s.tagline}`);
+    const cur = document.getElementById('nav-current'); if (cur) cur.textContent = `Day ${s.day} \u00b7 ${s.title}`;
+    const det = document.getElementById('nav-wrap'); if (det) det.open = !narrow.matches;
+    const mainEl = document.querySelector('main');
+    if (!reduce) { mainEl.classList.remove('enter'); void mainEl.offsetWidth; mainEl.classList.add('enter'); }
     document.getElementById('tagline').textContent = s.tagline;
     document.getElementById('prompt').textContent = s.prompt || '';
     document.getElementById('body').innerHTML = s.body || '';
@@ -148,7 +228,35 @@
     resize();
   }
 
+  // the day list collapses into a disclosure on narrow screens
+  const narrow = window.matchMedia('(max-width: 900px)');
+  narrow.addEventListener('change', () => { const d = document.getElementById('nav-wrap'); if (d) d.open = !narrow.matches; });
+
+  // keyboard paging: left/right arrows move between days unless a control has focus
+  document.addEventListener('keydown', e => {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const a = document.activeElement;
+    if (a && a !== document.body && a.matches('input, select, textarea, button, [contenteditable], [role="slider"]')) return;
+    const i = scenes.indexOf(current && current.s); const n = scenes[i + (e.key === 'ArrowRight' ? 1 : -1)];
+    if (n) { e.preventDefault(); location.hash = n.id; }
+  });
+
   window.addEventListener('hashchange', () => { show(location.hash.slice(1)); document.getElementById('top').scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }); });
+
+  // theme: auto (follow the OS) / light / dark, remembered between visits
+  const THEME_KEY = 'mm-theme';
+  function applyTheme(m) {
+    if (m === 'light' || m === 'dark') document.documentElement.dataset.theme = m; else delete document.documentElement.dataset.theme;
+    document.querySelectorAll('#theme [data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === (m || 'auto'))));
+  }
+  let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
+  applyTheme(saved);
+  document.getElementById('theme').addEventListener('click', e => {
+    const b = e.target.closest('[data-mode]'); if (!b) return;
+    const m = b.dataset.mode; try { m === 'auto' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, m); } catch (err) {}
+    applyTheme(m);
+  });
 
   // theme
   function themeChanged() { readColors(); themeFns.forEach(f => f()); }
@@ -157,11 +265,15 @@
 
   // loop
   let last = performance.now(), t = 0;
+  // skip work while the tab is hidden or the stage is scrolled out of view
+  let onScreen = true;
+  new IntersectionObserver(es => { onScreen = es[es.length - 1].isIntersecting; }).observe(host);
   function frame(now) {
+    requestAnimationFrame(frame);
+    if (document.hidden || !onScreen) { last = now; return; }
     const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     for (const f of frameFns) { try { f(dt, t); } catch (e) { console.error(e); frameFns = frameFns.filter(x => x !== f); } }
     renderer.render(scene, camera);
-    requestAnimationFrame(frame);
   }
 
   window.addEventListener('DOMContentLoaded', () => {

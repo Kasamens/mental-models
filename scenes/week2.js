@@ -1,5 +1,4 @@
-/* Week 2 \u00b7 Better decisions: days 8, 9, 11, 12, 13.
- * Day 10 (Hanlon's razor) is an external page linked from the hub; it is not built here.
+/* Week 2 \u00b7 Better decisions: days 8 to 13 (day 10 is Hanlon's razor, at the end of this file).
  * Every number in these scenes is illustrative, chosen to show the mechanism, not measured data.
  */
 (function () {
@@ -829,6 +828,236 @@ Already spent: in both lines, so it changes nothing</div>
 
       setNote(); readout();
       ctx.fit(FW + 0.4, 6.2, new T.Vector3(0, 0, 0.2), new T.Vector3(0, 1.15, 1));
+    },
+  });
+
+  // =====================================================================
+  // Day 10 · Hanlon's razor: a crowd sorted by why they did it
+  // (ported from the old standalone hanlons-razor.html)
+  // =====================================================================
+  MM.register({
+    id: 'hanlons-razor', day: 10, week: 2,
+    title: "Hanlon's razor",
+    tagline: 'Never attribute to malice what is adequately explained by error. Start with the boring explanation, and move off it only when it stops fitting.',
+    prompt: 'Pick a situation, then press “Apply the razor” to sort the crowd by why each person did it.',
+    body: `
+      <section>
+        <span class="eyebrow">Where it comes from</span>
+        <h2>A joke submission that stuck</h2>
+        <p>Robert J. Hanlon sent the line to Arthur Bloch for <i>Murphy's Law Book Two</i> (1980), a collection of tongue-in-cheek laws about why things go wrong. The idea is older: Goethe wrote in 1774 that misunderstandings and neglect cause more trouble than wickedness, and Robert Heinlein made the same point in a 1941 story. It's called a "razor" because, like Occam's, it shaves away an explanation you don't need.</p>
+        <p>Read "stupidity" generously. In practice it means ordinary error: not knowing, not noticing, forgetting, being overloaded, or having different priorities than you assumed.</p>
+      </section>
+      <section>
+        <span class="eyebrow">Why it usually holds</span>
+        <h2>The crowd is mostly harmless</h2>
+        <div class="points">
+          <div><h3>Base rates</h3><p>Mistakes are cheap and constant. Malice takes motive, effort and attention on you specifically. Across everyone who might have done it, the careless vastly outnumber the cruel.</p></div>
+          <div><h3>You see outcomes, not intent</h3><p>A missed email looks identical whether it was ignored or buried. Your brain fills the gap with a story, and stories about villains are more vivid than stories about inboxes.</p></div>
+          <div><h3>The costs are lopsided</h3><p>Wrongly accusing someone damages a relationship that may be hard to repair. Wrongly giving the benefit of the doubt is cheap and easy to revise once more evidence arrives.</p></div>
+        </div>
+      </section>
+      <section>
+        <span class="eyebrow">Where it stops cutting</span>
+        <h2>The key word is “adequately”</h2>
+        <p>The razor is a starting assumption, not a verdict. It tells you to begin with error and move off it only when error stops explaining what you see. Drag the repeat slider above and watch the red group grow: one incident says little, but a pattern is evidence.</p>
+        <div class="points fail">
+          <div><h3>Repetition</h3><p>One bad merge is a mistake. The same person reverting your work six sprints in a row is a pattern that error explains poorly.</p></div>
+          <div><h3>Incentives</h3><p>If the "mistake" always lands in the other person's favour, ask who benefits. Errors are random; self-serving errors are suspicious.</p></div>
+          <div><h3>Adversarial settings</h3><p>Phishing emails, fraud and security incidents are full of people trying to look clumsy. There the base rate of malice is high, so the razor doesn't apply.</p></div>
+        </div>
+      </section>
+      <section>
+        <span class="eyebrow">The arithmetic behind the slider</span>
+        <h2>Updating on a pattern</h2>
+        <p>Start with the chance it was deliberate, the red share for the situation you picked (around 5%). Assume someone acting on purpose would do it again 90% of the time, and someone careless would repeat the same slip 30% of the time. Each repeat multiplies the odds toward malice by 3.</p>
+        <div class="math" id="hr-math"></div>
+        <p>The exact numbers matter less than the shape: a low prior survives one incident, starts to wobble at three, and gives way by four or five. That's the razor working as intended.</p>
+      </section>
+      <section>
+        <span class="eyebrow">Related ideas</span>
+        <h2>Its neighbours</h2>
+        <div class="points">
+          <div><h3>Occam's razor</h3><p>Prefer the explanation that needs the fewest assumptions. Malice needs a motive, a plan and a target; error needs only a person.</p></div>
+          <div><h3>Fundamental attribution error</h3><p>We blame other people's behaviour on their character and our own on circumstances. Hanlon's razor is a deliberate correction for it.</p></div>
+          <div><h3>Grey's law</h3><p>Incompetence that is advanced enough looks the same as malice. Sometimes the effect on you is identical, and you should respond to the effect.</p></div>
+        </div>
+      </section>
+      <p class="fine">The splits are illustrative, chosen to show the idea, not measured from a study.</p>`,
+    mount(ctx) {
+      const T = ctx.THREE, K = ctx.kit(), S = ctx.scene, host = ctx.host;
+      const N = 180, SP = 0.42, P_M = 0.9, P_E = 0.3;
+      const KEYS = ['c1', 'c2', 'c3', 'c4', 'bad'];
+      const SCEN = [
+        { id: 'email', chip: 'Unanswered email', q: 'Your email has gone unanswered for a week.',
+          groups: [['Never saw it', .36], ['Saw it, forgot', .30], ['Waiting on someone', .15], ['Thought they replied', .14], ['Ignoring you on purpose', .05]] },
+        { id: 'drive', chip: 'Cut off in traffic', q: 'A driver just cut you off on the highway.',
+          groups: [["Didn't check the mirror", .40], ['Distracted', .25], ['Lost, needed the exit', .20], ['Late and rushing', .11], ['Did it to spite you', .04]] },
+        { id: 'revert', chip: 'Your code got reverted', q: 'A teammate reverted your pull request.',
+          groups: [['Broke a test they trust', .35], ['Merge conflict mess', .25], ['Misread the ticket', .20], ['Release freeze', .15], ['Undermining you', .05]] },
+      ];
+      let scen = SCEN[0], times = 1, sorted = false;
+
+      const posterior = (b, n) => { const a = b * Math.pow(P_M, n - 1), e = (1 - b) * Math.pow(P_E, n - 1); return a / (a + e); };
+      const shares = () => { const b = scen.groups[4][1], p = posterior(b, times); return scen.groups.map((g, i) => i === 4 ? p : g[1] / (1 - b) * (1 - p)); };
+      function counts(sh) {
+        const raw = sh.map(s => s * N), c = raw.map(Math.floor);
+        const left = N - c.reduce((a, b) => a + b, 0);
+        raw.map((r, i) => [r - Math.floor(r), i]).sort((a, b) => b[0] - a[0]).slice(0, left).forEach(([, i]) => c[i]++);
+        return c;
+      }
+
+      // scene
+      const grid = new T.GridHelper(40, 80); grid.material.transparent = true; grid.material.opacity = 0.35; S.add(grid);
+      const bodyGeo = new T.CylinderGeometry(0.1, 0.15, 0.46, 12); bodyGeo.translate(0, 0.23, 0);
+      const headGeo = new T.SphereGeometry(0.1, 14, 10); headGeo.translate(0, 0.58, 0);
+      const mat = new T.MeshStandardMaterial({ roughness: 0.65, metalness: 0.05 });
+      const bodies = new T.InstancedMesh(bodyGeo, mat, N), heads = new T.InstancedMesh(headGeo, mat, N);
+      S.add(bodies, heads);
+      const blade = new T.Group();
+      const bladeMat = K.std('accent', { metalness: 0.85, roughness: 0.22, transparent: true, opacity: 0.85 });
+      const bb = new T.Mesh(new T.BoxGeometry(0.04, 1.3, 1), bladeMat); bb.position.y = 0.75;
+      const edge = new T.Mesh(new T.BoxGeometry(0.06, 0.04, 1), K.basic('bad')); edge.position.y = 0.1;
+      blade.add(bb, edge); S.add(blade);
+
+      const rand = seed => { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; };
+      const rnd = rand(42), people = [];
+      for (let i = 0; i < N; i++) {
+        const x = (rnd() - 0.5) * 10, z = (rnd() - 0.5) * 4.6;
+        people.push({ x, z, tx: x, tz: z, sx: x, sz: z, group: -1, revealed: false, col: new T.Color(), tcol: new T.Color(), phase: rnd() * Math.PI * 2 });
+      }
+      const gcol = g => ctx.colors[KEYS[g]];
+      function readTheme() {
+        grid.material.color.copy(ctx.colors.line);
+        people.forEach(p => p.tcol.copy(p.revealed ? gcol(p.group) : ctx.colors.neutral));
+        renderLegend();
+      }
+
+      let layout = { width: 11, divider: 0, groups: [] }, bladeX = -6.2, bladeTarget = -6.2, bladeDepth = 5, sweep = null;
+      function assign() {
+        const c = counts(shares());
+        const members = [[], [], [], [], []], pool = [];
+        people.forEach(p => { if (p.group >= 0 && members[p.group].length < c[p.group]) members[p.group].push(p); else pool.push(p); });
+        for (let g = 0; g < 5; g++) while (members[g].length < c[g]) members[g].push(pool.pop());
+        const gap = 1.0, divGap = 1.7;
+        const info = c.map(n => { const cols = Math.max(1, Math.ceil(Math.sqrt(n * 0.9))), rows = Math.max(1, Math.ceil(n / cols)); return { n, cols, rows, w: (cols - 1) * SP }; });
+        let total = 0; info.forEach((g, i) => { total += g.w; if (i < 4) total += (i === 3 ? divGap : gap); });
+        let x = -total / 2, divider = 0, maxRows = 1;
+        info.forEach((g, i) => {
+          g.x0 = x; g.cx = x + g.w / 2; g.front = (g.rows - 1) / 2 * SP; maxRows = Math.max(maxRows, g.rows);
+          x += g.w; if (i === 3) divider = x + divGap / 2; if (i < 4) x += (i === 3 ? divGap : gap);
+        });
+        members.forEach((list, g) => {
+          const gi = info[g];
+          list.sort((a, b) => a.sx - b.sx || a.sz - b.sz);
+          list.forEach((p, j) => {
+            p.group = g; p.tx = gi.x0 + (j % gi.cols) * SP; p.tz = (Math.floor(j / gi.cols) - (gi.rows - 1) / 2) * SP;
+            if (p.revealed) p.tcol.copy(gcol(g));
+          });
+        });
+        layout = { width: total, divider, groups: info };
+        bladeDepth = Math.max(3, maxRows * SP + 1.2);
+        if (sorted && !sweep) bladeTarget = divider;
+        renderLegend();
+      }
+
+      // controls
+      const qEl = K.el('p', 'hr-q'); ctx.controls.appendChild(qEl);
+      const chips = K.chips('Choose a situation', SCEN.map(s => ({ label: s.chip, v: s.id })), scen.id, id => {
+        scen = SCEN.find(s => s.id === id); times = 1; slider.input.value = 1; assign(); updateText();
+      });
+      const apply = K.btn('Apply the razor', doApply);
+      K.btn('Mix them up', doReset, true);
+      const legend = K.el('ul', 'hr-legend'); legend.setAttribute('aria-live', 'polite'); ctx.controls.appendChild(legend);
+      const slider = K.slider({ label: 'How many times has this person done it to you?', min: 1, max: 6, step: 1, value: 1,
+        on: x => { if (x !== times) { times = x; assign(); updateText(); } } });
+      slider.input.style.accentColor = 'var(--bad)';
+      const ro = K.readout();
+      const hint = K.el('span', 'scene-hint', `${N} suspects, all grey. Press “Apply the razor” to see why each one did it.`);
+      host.appendChild(hint);
+      const tags = scen.groups.map(() => K.tag('', K.V(0, 0, 0)));
+
+      function renderLegend() {
+        const c = counts(shares());
+        legend.innerHTML = scen.groups.map((g, i) => `<li class="${i === 4 ? 'mal' : ''}"><span class="sw" style="background:var(--${KEYS[i]})"></span><span>${g[0]}</span><span class="n">${sorted ? c[i] : '?'}</span><span class="pct">${sorted ? Math.round(c[i] / N * 100) + '%' : ''}</span></li>`).join('');
+        tags.forEach((t, i) => t.set(`<b style="color:var(--${KEYS[i]})">${c[i]}</b>${scen.groups[i][0]}`));
+      }
+      function updateText() {
+        qEl.textContent = scen.q;
+        const base = scen.groups[4][1], post = posterior(base, times), c = counts(shares());
+        if (!sorted) ro.textContent = 'Apply the razor first, then see how a repeat changes the picture.';
+        else if (times === 1) ro.innerHTML = `First time it's happened: <strong>${c[4]} of ${N}</strong> did it on purpose. Assume error.`;
+        else {
+          const verdict = post < 0.25 ? 'Still most likely error.' : post < 0.5 ? 'Getting suspicious. Ask, don’t accuse.' : 'Error no longer adequately explains it.';
+          ro.innerHTML = `Happened ${times} times: <strong>${Math.round(post * 100)}%</strong> chance it's deliberate. ${verdict}`;
+        }
+        slider.input.disabled = !sorted;
+        let lines = `prior odds (malice : error)  = ${base.toFixed(2)} : ${(1 - base).toFixed(2)}\neach repeat multiplies by      ${P_M} / ${P_E} = 3\n\n`;
+        for (let n = 1; n <= 6; n++) lines += `${n === times ? '▶' : ' '} after ${n} time${n > 1 ? 's' : ' '}:  ${(posterior(base, n) * 100).toFixed(0).padStart(3)}% deliberate\n`;
+        const m = document.getElementById('hr-math'); if (m) m.textContent = lines.trimEnd();
+      }
+      function doApply() {
+        sorted = true; assign();
+        const half = layout.width / 2 + 1.2, from = Math.min(-half, -6.2), to = Math.max(half, 6.2);
+        if (ctx.reduce) { people.forEach(p => { p.revealed = true; p.tcol.copy(gcol(p.group)); }); bladeX = bladeTarget = layout.divider; sweep = null; }
+        else { bladeX = from; sweep = { to, speed: (to - from) / 1.5 }; }
+        hint.hidden = true; renderLegend(); updateText();
+      }
+      function doReset() {
+        sorted = false; sweep = null; times = 1; slider.input.value = 1;
+        const r = rand(Math.floor(Math.random() * 1e6) + 1);
+        people.forEach(p => { p.revealed = false; p.tcol.copy(ctx.colors.neutral); p.tx = p.sx = (r() - 0.5) * 10; p.tz = p.sz = (r() - 0.5) * 4.6; });
+        layout.width = 11; bladeTarget = -6.2; bladeDepth = 5; hint.hidden = false;
+        renderLegend(); updateText();
+      }
+
+      let mx = 0, my = 0;
+      const onMove = e => { const r = host.getBoundingClientRect(); mx = (e.clientX - r.left) / r.width - 0.5; my = (e.clientY - r.top) / r.height - 0.5; };
+      const onLeave = () => { mx = my = 0; };
+      host.addEventListener('pointermove', onMove); host.addEventListener('pointerleave', onLeave);
+
+      const m4 = new T.Matrix4(), q = new T.Quaternion(), s1 = new T.Vector3(1, 1, 1), v = new T.Vector3();
+      const camDir = new T.Vector3(0, 0.62, 0.78).normalize(), cam = ctx.camera;
+      let camDist = 16;
+      ctx.onFrame((dt, t) => {
+        const k = K.f(dt, 4.5);
+        if (sweep) {
+          bladeX += sweep.speed * dt;
+          people.forEach(p => { if (!p.revealed && bladeX > p.x) { p.revealed = true; p.tcol.copy(gcol(p.group)); } });
+          if (bladeX >= sweep.to) { sweep = null; bladeTarget = layout.divider; }
+        } else bladeX += (bladeTarget - bladeX) * K.f(dt, 3);
+        blade.position.x = bladeX;
+        blade.scale.z += (bladeDepth - blade.scale.z) * k;
+
+        const span = Math.max(layout.width, 10) * 1.12;
+        const hfov = 2 * Math.atan(Math.tan(T.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
+        const want = Math.max(9, (span / 2) / Math.tan(hfov / 2) + 2);
+        camDist += (want - camDist) * K.f(dt, 2);
+        cam.position.copy(camDir).multiplyScalar(camDist);
+        cam.position.x += mx * 2.2; cam.position.y -= my * 1.2;
+        cam.lookAt(0, 0.2, 0);
+
+        people.forEach((p, i) => {
+          const go = p.revealed, gx = go ? p.tx : p.sx, gz = go ? p.tz : p.sz, dx = gx - p.x, dz = gz - p.z;
+          p.x += dx * k; p.z += dz * k;
+          const moving = Math.min(1, Math.hypot(dx, dz));
+          const y = ctx.reduce ? 0 : Math.abs(Math.sin(t * 9 + p.phase)) * 0.18 * moving + (go ? 0 : Math.sin(t * 1.6 + p.phase) * 0.015);
+          v.set(p.x, y, p.z); m4.compose(v, q, s1);
+          bodies.setMatrixAt(i, m4); heads.setMatrixAt(i, m4);
+          p.col.lerp(p.tcol, K.f(dt, 6));
+          bodies.setColorAt(i, p.col); heads.setColorAt(i, p.col);
+        });
+        bodies.instanceMatrix.needsUpdate = heads.instanceMatrix.needsUpdate = true;
+        bodies.instanceColor.needsUpdate = heads.instanceColor.needsUpdate = true;
+
+        const settled = sorted && !sweep;
+        layout.groups.forEach((g, i) => { tags[i].pos.set(g.cx, 0, g.front + 0.45); tags[i].show(settled && g.n > 0); });
+      });
+      ctx.onTheme(readTheme);
+
+      people.forEach((p, i) => { p.col.copy(ctx.colors.neutral); p.tcol.copy(ctx.colors.neutral); bodies.setColorAt(i, p.col); heads.setColorAt(i, p.col); });
+      readTheme(); assign(); updateText();
+      tags.forEach(t => t.show(false));
+      return { dispose() { host.removeEventListener('pointermove', onMove); host.removeEventListener('pointerleave', onLeave); hint.remove(); } };
     },
   });
 })();
