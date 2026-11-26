@@ -106,6 +106,14 @@ main { display: grid; gap: 28px; min-width: 0; }
 #body .points p { color: var(--muted); font-size: 0.94rem; }
 #body .math { font-family: var(--font-mono); font-size: 0.85rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
 #body .try { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 6px; }
+/* Review-day quizzes (scenes/reviews.js) */
+.review-q { flex: 1 1 100%; font-size: 1rem; line-height: 1.5; }
+.review-q .eyebrow { display: block; margin-bottom: 4px; }
+.review-choices { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.review-choices:empty { display: none; }
+.review-choices .chip:disabled { cursor: default; opacity: .5; }
+.review-choices .chip:disabled[aria-pressed="true"] { opacity: 1; }
+#controls .btn[hidden] { display: none; }
 #pager { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.92rem; }
 #pager a { text-decoration: none; color: var(--accent); font-weight: 600; }
 
@@ -219,3 +227,4 @@ main.enter .card { animation-delay: .05s; }
 <script src="scenes/week1.js"></script>
 <script src="scenes/week2.js"></script>
 <script src="scenes/week3.js"></script>
+<script src="scenes/reviews.js"></script>
