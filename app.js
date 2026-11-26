@@ -201,8 +201,11 @@
   }
 
   function show(id) {
-    const s = scenes.find(x => x.id === id) || scenes[0];
-    if (!s) return;
+    let s = scenes.find(x => x.id === id), missing = null;
+    if (!s) {
+      s = scenes[0]; if (!s) return;
+      if (id) { try { missing = decodeURIComponent(id); } catch (e) { missing = id; } history.replaceState(null, '', '#' + s.id); } // fix the address so a reload or share lands on a real model
+    }
     unmount();
     current = { s };
     document.getElementById('day').textContent = `Day ${s.day} \u00b7 Week ${s.week}`;
@@ -214,7 +217,9 @@
     const mainEl = document.querySelector('main');
     if (!reduce) { mainEl.classList.remove('enter'); void mainEl.offsetWidth; mainEl.classList.add('enter'); }
     document.getElementById('tagline').textContent = s.tagline;
-    document.getElementById('prompt').textContent = s.prompt || '';
+    document.getElementById('prompt').textContent = missing
+      ? `There’s no model called “${missing}”, so here’s Day ${s.day}. ${s.prompt || ''}`
+      : (s.prompt || '');
     document.getElementById('body').innerHTML = s.body || '';
     nav.querySelectorAll('a[data-id]').forEach(a => a.setAttribute('aria-current', a.dataset.id === s.id ? 'page' : 'false'));
     const i = scenes.indexOf(s);
@@ -254,9 +259,14 @@
 
   // theme: auto (follow the OS) / light / dark, remembered between visits
   const THEME_KEY = 'mm-theme';
+  // data-theme always holds the resolved theme (light/dark); `mode` is the user's choice, where 'auto' follows the OS
+  const darkOS = window.matchMedia('(prefers-color-scheme: dark)');
+  let mode = 'auto';
   function applyTheme(m) {
-    if (m === 'light' || m === 'dark') document.documentElement.dataset.theme = m; else delete document.documentElement.dataset.theme;
-    document.querySelectorAll('#theme [data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === (m || 'auto'))));
+    mode = (m === 'light' || m === 'dark') ? m : 'auto';
+    const resolved = mode === 'auto' ? (darkOS.matches ? 'dark' : 'light') : mode;
+    if (document.documentElement.dataset.theme !== resolved) document.documentElement.dataset.theme = resolved;
+    document.querySelectorAll('#theme [data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
   }
   let saved = null; try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
   applyTheme(saved);
@@ -265,10 +275,10 @@
     const m = b.dataset.mode; try { m === 'auto' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, m); } catch (err) {}
     applyTheme(m);
   });
+  darkOS.addEventListener('change', () => { if (mode === 'auto') applyTheme('auto'); });
 
-  // theme
+  // scenes recolour whenever the resolved theme changes
   function themeChanged() { readColors(); themeFns.forEach(f => f()); }
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
   new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // loop

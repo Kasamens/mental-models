@@ -3,7 +3,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mental Models</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A 3-week plan, one mental model a day. Each model gets a small interactive 3D world you can poke at: first principles, inversion, second-order thinking and more.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mental Models in 3D">
+<meta property="og:description" content="A 3-week plan, one mental model a day, each with an interactive 3D scene.">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#edf0f4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f131a" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<script>
+/* Resolve the theme before first paint so a saved choice never flashes the wrong colours. app.js keeps it in sync after load. */
+(function () {
+  var m = null; try { m = localStorage.getItem('mm-theme'); } catch (e) {}
+  if (m !== 'light' && m !== 'dark') m = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = m;
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -20,14 +35,7 @@
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f131a; --surface: #161b24; --fg: #e3e8f0; --muted: #96a1b4; --line: #2a3241;
-    --accent: #a3bcd8; --warm: #f0b54a; --bad: #ff5c6d; --good: #4fd18f;
-    --c1: #3fb2c0; --c2: #6cb8de; --c3: #93a8ea; --c4: #9cc4b1; --neutral: #5e6779;
-    color-scheme: dark;
-  }
-}
+/* Dark tokens live in one place: the head script always sets data-theme (Auto resolves to the OS setting). */
 :root[data-theme="dark"] {
   --bg: #0f131a; --surface: #161b24; --fg: #e3e8f0; --muted: #96a1b4; --line: #2a3241;
   --accent: #a3bcd8; --warm: #f0b54a; --bad: #ff5c6d; --good: #4fd18f;
@@ -206,7 +214,7 @@ main.enter .card { animation-delay: .05s; }
   </main>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="app.js"></script>
 <script src="scenes/week1.js"></script>
 <script src="scenes/week2.js"></script>
