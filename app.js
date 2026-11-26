@@ -44,7 +44,18 @@
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setClearColor(0x000000, 0);
+  // soft contact shadows from the key light (the stage backdrop itself is a CSS gradient behind the transparent canvas)
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   host.prepend(renderer.domElement);
+
+  // clay look: a soft rim light on every lit (standard/physical) material, so edges catch light like matte clay.
+  // Patched once into the shared shader source, so every scene gets it without changing its materials.
+  THREE.ShaderLib.standard.fragmentShader = THREE.ShaderLib.standard.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+    {
+      float facing = clamp(dot(geometry.normal, geometry.viewDir), 0.0, 1.0); // clamped so pow() never sees a negative base
+      reflectedLight.indirectDiffuse += diffuseColor.rgb * pow(1.0 - facing, 3.0) * 0.45;
+    }`);
 
   const camera = new THREE.PerspectiveCamera(38, 2, 0.1, 500);
   let scene = new THREE.Scene();
@@ -56,14 +67,41 @@
   let frameFns = [], themeFns = [], tags = [], current = null, fitBox = null;
   let W = 1, H = 1;
 
+  // studio lighting: sky/ground fill, a warm key light that casts soft shadows, and a faint cool fill from the other side
+  let key = null;
   function addLights(s) {
-    s.add(new THREE.HemisphereLight(0xffffff, 0x445566, 0.85));
-    const d = new THREE.DirectionalLight(0xffffff, 0.75); d.position.set(4, 10, 6); s.add(d);
+    s.add(new THREE.HemisphereLight(0xffffff, 0x445566, 0.78));
+    key = new THREE.DirectionalLight(0xfff6ea, 0.8); key.position.set(4, 10, 6);
+    key.castShadow = true;
+    const sh = key.shadow; sh.mapSize.set(1024, 1024); sh.bias = -0.0004; sh.normalBias = 0.03; sh.radius = 4;
+    s.add(key, key.target);
+    const fill = new THREE.DirectionalLight(0xdbe6ff, 0.18); fill.position.set(-6, 4, 3); s.add(fill);
+    fitShadow(10, 10, new THREE.Vector3());
+  }
+  // keep the shadow camera tight around whatever the scene framed, so shadows stay crisp at any scene size
+  function fitShadow(w, h, target) {
+    if (!key) return;
+    const r = Math.max(w, h) * 0.75 + 1, cam = key.shadow.camera;
+    key.target.position.copy(target);
+    key.position.copy(target).add(new THREE.Vector3(4, 10, 6).normalize().multiplyScalar(r * 2 + 6));
+    cam.left = -r; cam.right = r; cam.top = r; cam.bottom = -r; cam.near = 0.5; cam.far = r * 4 + 12;
+    cam.updateProjectionMatrix();
+  }
+  // every lit, opaque mesh casts and receives shadows; flat (basic) materials and see-through ones are left alone
+  function shadowFlags(root) {
+    root.traverse(o => {
+      if (!o.isMesh || o.userData.noShadow) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const lit = mats.every(m => m && (m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial));
+      const solid = mats.every(m => m && !m.transparent);
+      o.castShadow = lit && solid; o.receiveShadow = lit;
+    });
   }
 
   function fitCamera() {
     if (!fitBox) return;
     const { w, h, target } = fitBox;
+    fitShadow(w, h, target);
     const vfov = THREE.MathUtils.degToRad(camera.fov);
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
     const dist = Math.max((h / 2) / Math.tan(vfov / 2), (w / 2) / Math.tan(hfov / 2)) * 1.12;
@@ -282,7 +320,7 @@
   new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
   // loop
-  let last = performance.now(), t = 0;
+  let last = performance.now(), t = 0, shadowTick = 0;
   // skip work while the tab is hidden or the stage is scrolled out of view
   let onScreen = true;
   new IntersectionObserver(es => { onScreen = es[es.length - 1].isIntersecting; }).observe(host);
@@ -291,6 +329,7 @@
     if (document.hidden || !onScreen) { last = now; return; }
     const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     for (const f of frameFns) { try { f(dt, t); } catch (e) { console.error(e); frameFns = frameFns.filter(x => x !== f); } }
+    if (++shadowTick % 20 === 1) shadowFlags(scene); // scenes add meshes as they animate; a light re-scan keeps them shadowed
     renderer.render(scene, camera);
   }
 
