@@ -49,13 +49,10 @@
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   host.prepend(renderer.domElement);
 
-  // clay look: a soft rim light on every lit (standard/physical) material, so edges catch light like matte clay.
+  // paper look: every lit (standard/physical) surface is fully matte, like card stock, with no sheen or highlights.
   // Patched once into the shared shader source, so every scene gets it without changing its materials.
-  THREE.ShaderLib.standard.fragmentShader = THREE.ShaderLib.standard.fragmentShader.replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
-    {
-      float facing = clamp(dot(geometry.normal, geometry.viewDir), 0.0, 1.0); // clamped so pow() never sees a negative base
-      reflectedLight.indirectDiffuse += diffuseColor.rgb * pow(1.0 - facing, 3.0) * 0.45;
-    }`);
+  THREE.ShaderLib.standard.fragmentShader = THREE.ShaderLib.standard.fragmentShader.replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+    roughnessFactor = 1.0; metalnessFactor = 0.0;`);
 
   const camera = new THREE.PerspectiveCamera(38, 2, 0.1, 500);
   let scene = new THREE.Scene();
